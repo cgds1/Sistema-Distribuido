@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+service PersonaService {
+  rpc CreatePersona (PersonaInput) returns (PersonaResponse);
+  rpc ReadPersonas  (Empty)        returns (PersonaList);
+  rpc UpdatePersona (PersonaInput) returns (PersonaResponse);
+  rpc DeletePersona (CiRequest)   returns (PersonaResponse);
+  rpc GetMetrics    (Empty)        returns (Metrics);
+}
+
+message PersonaInput {
+  string ci       = 1;
+  string nombre   = 2;
+  string apellido = 3;
+}
+
+message PersonaResponse {
+  bool         ok      = 1;
+  string       message = 2;
+  PersonaInput persona = 3;
+}
+
+message PersonaList {
+  repeated PersonaInput personas = 1;
+}
+
+message CiRequest {
+  string ci = 1;
+}
+
+message Empty {}
+
+message Metrics {
+  int32  cpu_count     = 1;
+  double cpu_speed_mhz = 2;
+  double free_mem_mb   = 3;
+  int32  active_conns  = 4;
+  double avg_rps       = 5;
+}
