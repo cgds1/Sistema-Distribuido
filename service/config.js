@@ -1,0 +1,1 @@
+export const DB_URL = process.env.DB_URL ?? 'http://localhost:4000'
