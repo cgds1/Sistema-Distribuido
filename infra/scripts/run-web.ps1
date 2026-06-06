@@ -7,7 +7,7 @@ $env:PORT  = "3000"
 $env:NODES = "IP_A:50051,IP_B:50052,IP_C:50053"  # IPs LAN de las 3 máquinas
 # ------------------------
 
-# Ubicarse en la raíz del proyecto (carpeta padre de este script)
-Set-Location (Split-Path -Parent $PSScriptRoot)
+# Ubicarse en la raíz del proyecto (este script vive en infra/scripts/)
+Set-Location (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
 
 node web-server/index.js

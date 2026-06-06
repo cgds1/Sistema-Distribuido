@@ -8,7 +8,7 @@ export PORT=50051                 # M_A=50051, M_B=50052, M_C=50053
 export DB_URL=http://IP_B:4000    # IP LAN de la máquina con la DB; en M_B usar http://localhost:4000
 # -----------------------------------
 
-# Ubicarse en la raíz del proyecto (carpeta padre de este script)
-cd "$(dirname "$0")/.."
+# Ubicarse en la raíz del proyecto (este script vive en infra/scripts/)
+cd "$(dirname "$0")/../.."
 
 node service/index.js

@@ -3,10 +3,10 @@
 # Requiere Docker. El puerto 4000 se publica a la LAN.
 set -euo pipefail
 
-# Ubicarse en la raíz del proyecto (carpeta padre de este script)
-cd "$(dirname "$0")/.."
+# Ubicarse en la raíz del proyecto (este script vive en infra/scripts/)
+cd "$(dirname "$0")/../.."
 
-docker build -f Dockerfile.db -t db-service .
+docker build -f infra/Dockerfile.db -t db-service .
 docker rm -f db-service 2>/dev/null || true
 docker run -d --name db-service -p 4000:4000 db-service
 

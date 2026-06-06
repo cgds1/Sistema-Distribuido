@@ -7,7 +7,7 @@ $env:PORT   = "50051"             # M_A=50051, M_B=50052, M_C=50053
 $env:DB_URL = "http://IP_B:4000"  # IP LAN de la máquina con la DB; en M_B usar http://localhost:4000
 # -----------------------------------
 
-# Ubicarse en la raíz del proyecto (carpeta padre de este script)
-Set-Location (Split-Path -Parent $PSScriptRoot)
+# Ubicarse en la raíz del proyecto (este script vive en infra/scripts/)
+Set-Location (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
 
 node service/index.js

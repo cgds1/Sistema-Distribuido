@@ -2,10 +2,10 @@
 # Requiere Docker Desktop. El puerto 4000 se publica a la LAN.
 $ErrorActionPreference = "Stop"
 
-# Ubicarse en la raíz del proyecto (carpeta padre de este script)
-Set-Location (Split-Path -Parent $PSScriptRoot)
+# Ubicarse en la raíz del proyecto (este script vive en infra/scripts/)
+Set-Location (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
 
-docker build -f Dockerfile.db -t db-service .
+docker build -f infra/Dockerfile.db -t db-service .
 docker rm -f db-service 2>$null
 docker run -d --name db-service -p 4000:4000 db-service
 

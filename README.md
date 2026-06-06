@@ -122,19 +122,20 @@ Las 3 máquinas deben estar en la misma red LAN. Obtené la IP de cada una
 (`ipconfig` en Windows / `ip addr` en Linux) y abrí los puertos en el firewall
 (3000, 4000, 50051-50053). Detalle completo en `docs/fases/08-...md`.
 
-Editá las IPs en los scripts de `scripts/` y ejecutá, en orden:
+Editá las IPs en los scripts de `infra/scripts/` (referencia de variables en
+`infra/.env.example`) y ejecutá, en orden:
 
 ```bash
 # 1) En M_B — base de datos (único contenedor) y su nodo
-scripts/run-db.sh         # o scripts/run-db.ps1 en Windows
-scripts/run-node.sh       # PORT=50052, DB_URL=http://localhost:4000
+infra/scripts/run-db.sh         # o infra/scripts/run-db.ps1 en Windows
+infra/scripts/run-node.sh       # PORT=50052, DB_URL=http://localhost:4000
 
 # 2) En M_C — nodo de servicio
-scripts/run-node.sh       # PORT=50053, DB_URL=http://IP_B:4000
+infra/scripts/run-node.sh       # PORT=50053, DB_URL=http://IP_B:4000
 
 # 3) En M_A — nodo de servicio + web-server/balanceador
-scripts/run-node.sh       # PORT=50051, DB_URL=http://IP_B:4000
-scripts/run-web.sh        # PORT=3000, NODES=IP_A:50051,IP_B:50052,IP_C:50053
+infra/scripts/run-node.sh       # PORT=50051, DB_URL=http://IP_B:4000
+infra/scripts/run-web.sh        # PORT=3000, NODES=IP_A:50051,IP_B:50052,IP_C:50053
 ```
 
 Abrir `http://localhost:3000` en M_A (o `http://IP_A:3000` desde otra máquina).
@@ -156,7 +157,7 @@ correspondiente (no hay Docker para los nodos):
 # El panel de la UI marca el nodo caído en rojo en ~2s.
 
 # Recuperar: relanzar el nodo en esa máquina
-scripts/run-node.sh       # vuelve a verde y recibe requests de nuevo
+infra/scripts/run-node.sh       # vuelve a verde y recibe requests de nuevo
 ```
 
 ---
