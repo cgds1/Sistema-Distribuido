@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sistema Distribuido — CRUD Persona</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2230;
+      --panel-2: #232d3f;
+      --border: #2e3a4f;
+      --text: #e6edf3;
+      --muted: #8b98a9;
+      --accent: #4f9cf9;
+      --green: #3fb950;
+      --red: #f85149;
+      --amber: #d29922;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    header {
+      padding: 20px 28px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+    }
+    header h1 { margin: 0; font-size: 20px; }
+    header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px 28px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 20px;
+    }
+    .card h2 { margin: 0 0 14px; font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+
+    /* Panel de nodos */
+    .nodes { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .node {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--muted);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .node.up { border-left-color: var(--green); }
+    .node.down { border-left-color: var(--red); opacity: .7; }
+    .node .name { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); display: inline-block; }
+    .node.up .dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .node.down .dot { background: var(--red); }
+    .node .addr { color: var(--muted); font-size: 12px; font-family: ui-monospace, monospace; margin-top: 2px; }
+    .node .meta { color: var(--muted); font-size: 12px; margin-top: 6px; }
+    .node .meta b { color: var(--text); font-weight: 600; }
+
+    /* Form */
+    form { display: grid; gap: 10px; }
+    label { font-size: 12px; color: var(--muted); }
+    input {
+      width: 100%; padding: 9px 11px; border-radius: 7px;
+      border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px;
+    }
+    input:disabled { opacity: .55; }
+    input:focus { outline: none; border-color: var(--accent); }
+    .row { display: flex; gap: 10px; }
+    button {
+      padding: 9px 16px; border-radius: 7px; border: 1px solid transparent;
+      background: var(--accent); color: #fff; font-size: 14px; cursor: pointer; font-weight: 500;
+    }
+    button:hover { filter: brightness(1.08); }
+    button.ghost { background: transparent; border-color: var(--border); color: var(--text); }
+    button.danger { background: var(--red); }
+    button.small { padding: 5px 10px; font-size: 12px; }
+
+    /* Tabla */
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+    td .acts { display: flex; gap: 6px; }
+    .empty { color: var(--muted); padding: 16px 0; text-align: center; }
+
+    /* Log */
+    #log { font-family: ui-monospace, monospace; font-size: 12px; max-height: 240px; overflow-y: auto; display: flex; flex-direction: column-reverse; }
+    .logline { padding: 5px 0; border-bottom: 1px dashed var(--border); }
+    .logline .op { color: var(--accent); font-weight: 600; }
+    .logline .node-tag { color: var(--green); }
+    .logline.err .op { color: var(--red); }
+    .logline .t { color: var(--muted); }
+    .pill { display:inline-block; background: var(--panel-2); border:1px solid var(--border); border-radius: 20px; padding: 1px 9px; font-size: 11px; color: var(--muted); }
+    #banner { display:none; padding:10px 14px; border-radius:7px; margin-bottom:6px; font-size:13px; }
+    #banner.err { display:block; background: rgba(248,81,73,.12); border:1px solid var(--red); color:#ffb4ae; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Sistema Distribuido — CRUD Persona</h1>
+    <p>API REST sobre balanceador propio · gRPC · cada operación la atiende el nodo de menor carga</p>
+  </header>
+
+  <div class="wrap">
+    <!-- Panel de nodos -->
+    <div class="card">
+      <h2>Estado de los nodos <span class="pill" id="poll-state">polling 2s</span></h2>
+      <div class="nodes" id="nodes"><div class="empty">Consultando…</div></div>
+    </div>
+
+    <div class="grid">
+      <!-- Formulario -->
+      <div class="card">
+        <h2 id="form-title">Crear persona</h2>
+        <div id="banner"></div>
+        <form id="form">
+          <div>
+            <label for="ci">CI</label>
+            <input id="ci" name="ci" autocomplete="off" placeholder="25111222" required />
+          </div>
+          <div class="row">
+            <div style="flex:1">
+              <label for="nombre">Nombre</label>
+              <input id="nombre" name="nombre" autocomplete="off" placeholder="Ana" required />
+            </div>
+            <div style="flex:1">
+              <label for="apellido">Apellido</label>
+              <input id="apellido" name="apellido" autocomplete="off" placeholder="Rodríguez" required />
+            </div>
+          </div>
+          <div class="row">
+            <button type="submit" id="submit-btn">Crear</button>
+            <button type="button" class="ghost" id="cancel-btn" style="display:none">Cancelar edición</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Log de actividad -->
+      <div class="card">
+        <h2>Actividad (observabilidad)</h2>
+        <div id="log"><div class="empty">Sin operaciones aún.</div></div>
+      </div>
+    </div>
+
+    <!-- Tabla -->
+    <div class="card">
+      <h2>Personas <button class="ghost small" id="reload-btn" style="float:right">↻ Recargar</button></h2>
+      <table>
+        <thead><tr><th>CI</th><th>Nombre</th><th>Apellido</th><th style="width:140px">Acciones</th></tr></thead>
+        <tbody id="tbody"><tr><td colspan="4" class="empty">Cargando…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id)
+    let editing = null // ci en edición, o null
+
+    // --- Cliente HTTP: devuelve datos + headers de observabilidad ---
+    async function api(method, path, body) {
+      const opts = { method, headers: {} }
+      if (body !== undefined) {
+        opts.headers['Content-Type'] = 'application/json'
+        opts.body = JSON.stringify(body)
+      }
+      const res = await fetch(path, opts)
+      const node = res.headers.get('X-Node')
+      const score = res.headers.get('X-Score')
+      let data = null
+      try { data = await res.json() } catch { /* sin body */ }
+      return { ok: res.ok, status: res.status, data, node, score }
+    }
+
+    // --- Log de observabilidad ---
+    function log(op, r, isErr = false) {
+      const box = $('log')
+      if (box.querySelector('.empty')) box.innerHTML = ''
+      const line = document.createElement('div')
+      line.className = 'logline' + (isErr ? ' err' : '')
+      const t = new Date().toLocaleTimeString()
+      const nodeInfo = r && r.node
+        ? `→ <span class="node-tag">${r.node}</span> <span class="t">(score ${r.score})</span>`
+        : ''
+      const detail = isErr ? ` <span class="t">${(r && r.data && r.data.error) || 'error'}</span>` : ''
+      line.innerHTML = `<span class="t">${t}</span> <span class="op">${op}</span> ${nodeInfo}${detail}`
+      box.prepend(line)
+    }
+
+    function banner(msg) {
+      const b = $('banner')
+      if (!msg) { b.className = ''; b.textContent = ''; return }
+      b.className = 'err'; b.textContent = msg
+    }
+
+    // --- Listar personas ---
+    async function loadPersonas() {
+      try {
+        const r = await api('GET', '/personas')
+        if (!r.ok) { log('GET /personas', r, true); return }
+        renderTable(r.data || [])
+        log('GET /personas', r)
+      } catch (e) {
+        $('tbody').innerHTML = `<tr><td colspan="4" class="empty">Sin conexión con el servidor.</td></tr>`
+      }
+    }
+
+    function renderTable(personas) {
+      const tb = $('tbody')
+      if (!personas.length) { tb.innerHTML = `<tr><td colspan="4" class="empty">No hay personas.</td></tr>`; return }
+      tb.innerHTML = ''
+      for (const p of personas) {
+        const tr = document.createElement('tr')
+        tr.innerHTML = `
+          <td>${esc(p.ci)}</td><td>${esc(p.nombre)}</td><td>${esc(p.apellido)}</td>
+          <td><div class="acts">
+            <button class="ghost small" data-edit="${esc(p.ci)}">Editar</button>
+            <button class="danger small" data-del="${esc(p.ci)}">Eliminar</button>
+          </div></td>`
+        tb.appendChild(tr)
+      }
+    }
+    const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]))
+
+    // --- Crear / Actualizar ---
+    $('form').addEventListener('submit', async (e) => {
+      e.preventDefault()
+      banner(null)
+      const ci = $('ci').value.trim()
+      const nombre = $('nombre').value.trim()
+      const apellido = $('apellido').value.trim()
+      if (!ci || !nombre || !apellido) { banner('Todos los campos son obligatorios.'); return }
+
+      let r
+      if (editing) {
+        r = await api('PUT', `/personas/${encodeURIComponent(editing)}`, { nombre, apellido })
+        log(`PUT /personas/${editing}`, r, !r.ok)
+      } else {
+        r = await api('POST', '/personas', { ci, nombre, apellido })
+        log('POST /personas', r, !r.ok)
+      }
+      if (!r.ok) { banner((r.data && r.data.error) || `Error ${r.status}`); return }
+      resetForm()
+      loadPersonas()
+    })
+
+    $('cancel-btn').addEventListener('click', resetForm)
+    $('reload-btn').addEventListener('click', loadPersonas)
+
+    function resetForm() {
+      editing = null
+      $('form').reset()
+      $('ci').disabled = false
+      $('form-title').textContent = 'Crear persona'
+      $('submit-btn').textContent = 'Crear'
+      $('cancel-btn').style.display = 'none'
+      banner(null)
+    }
+
+    function startEdit(ci, nombre, apellido) {
+      editing = ci
+      $('ci').value = ci; $('ci').disabled = true
+      $('nombre').value = nombre; $('apellido').value = apellido
+      $('form-title').textContent = `Editar persona ${ci}`
+      $('submit-btn').textContent = 'Guardar cambios'
+      $('cancel-btn').style.display = 'inline-block'
+    }
+
+    // --- Delegación de clicks en la tabla (editar / eliminar) ---
+    $('tbody').addEventListener('click', async (e) => {
+      const editCi = e.target.getAttribute('data-edit')
+      const delCi = e.target.getAttribute('data-del')
+      if (editCi) {
+        const row = e.target.closest('tr').children
+        startEdit(editCi, row[1].textContent, row[2].textContent)
+      } else if (delCi) {
+        if (!confirm(`¿Eliminar a la persona con CI ${delCi}?`)) return
+        const r = await api('DELETE', `/personas/${encodeURIComponent(delCi)}`)
+        log(`DELETE /personas/${delCi}`, r, !r.ok)
+        if (!r.ok) { banner((r.data && r.data.error) || `Error ${r.status}`); return }
+        if (editing === delCi) resetForm()
+        loadPersonas()
+      }
+    })
+
+    // --- Panel de nodos (polling cada 2s a /health) ---
+    async function pollHealth() {
+      try {
+        const res = await fetch('/health')
+        const { nodes } = await res.json()
+        renderNodes(nodes)
+        $('poll-state').textContent = 'en vivo · 2s'
+      } catch {
+        $('nodes').innerHTML = `<div class="empty">Sin conexión con el balanceador.</div>`
+        $('poll-state').textContent = 'sin conexión'
+      }
+    }
+
+    function renderNodes(nodes) {
+      const box = $('nodes')
+      box.innerHTML = ''
+      nodes.forEach((n, i) => {
+        const div = document.createElement('div')
+        div.className = 'node ' + (n.up ? 'up' : 'down')
+        const meta = n.up
+          ? `<div class="meta">score <b>${n.score}</b> · conns <b>${n.metrics.active_conns}</b> · rps <b>${n.metrics.avg_rps}</b><br>mem libre <b>${Math.round(n.metrics.free_mem_mb)} MB</b></div>`
+          : `<div class="meta">no responde</div>`
+        div.innerHTML = `
+          <div class="name"><span class="dot"></span> service-${i + 1}</div>
+          <div class="addr">${esc(n.node)}</div>
+          ${meta}`
+        box.appendChild(div)
+      })
+    }
+
+    // --- Arranque ---
+    loadPersonas()
+    pollHealth()
+    setInterval(pollHealth, 2000)
+  </script>
+</body>
+</html>

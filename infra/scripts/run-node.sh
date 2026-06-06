@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# M_A → PORT=50051, DB_URL=http://IP_B:4000
-# M_B → PORT=50052, DB_URL=http://localhost:4000
-# M_C → PORT=50053, DB_URL=http://IP_B:4000
+# run-node.sh — arranca UN nodo de servicio (proceso Node nativo).
+# Editar las 2 líneas de config según la máquina antes de ejecutar.
+set -euo pipefail
 
-# --- Config por máquina (editar antes de ejecutar) ---
-export PORT=50051
-export DB_URL=http://IP_B:4000
-# -----------------------------------------------------
+# --- Config por máquina (EDITAR) ---
+export PORT=50051                 # M_A=50051, M_B=50052, M_C=50053
+export DB_URL=http://IP_B:4000    # IP LAN de la máquina con la DB; en M_B usar http://localhost:4000
+# -----------------------------------
+
+# Ubicarse en la raíz del proyecto (este script vive en infra/scripts/)
+cd "$(dirname "$0")/../.."
 
 node service/index.js
