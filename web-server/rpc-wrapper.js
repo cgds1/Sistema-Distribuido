@@ -28,12 +28,18 @@ function client(addr) {
   return cache.get(addr)
 }
 
-// 4. Promisifica un método del cliente
+// 4. Promisifica un método del cliente con deadline y limpieza de cache
 function call(addr, method, payload = {}) {
+  const deadline = new Date(Date.now() + 3000) // 3 s timeout
   return new Promise((resolve, reject) => {
-    client(addr)[method](payload, (err, response) => {
-      if (err) reject(err)
-      else resolve(response)
+    client(addr)[method](payload, { deadline }, (err, response) => {
+      if (err) {
+        // Conexión rota → borrar del cache para reconectar en el siguiente intento
+        cache.delete(addr)
+        reject(err)
+      } else {
+        resolve(response)
+      }
     })
   })
 }
