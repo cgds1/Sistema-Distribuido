@@ -28,11 +28,29 @@ function wrap(handler) {
   return function (call, callback) {
     counter.active++
     counter.recordRequest()
-    const wrappedCallback = (err, response) => {
+
+    let finished = false
+    const finishCounting = () => {
+      if (finished) return
+      finished = true
       counter.active--
+      counter.handled = (counter.handled || 0) + 1
+    }
+
+    const wrappedCallback = (err, response) => {
+      finishCounting()
       callback(err, response)
     }
-    handler(call, wrappedCallback)
+
+    try {
+      const maybePromise = handler(call, wrappedCallback)
+      if (maybePromise && typeof maybePromise.finally === 'function') {
+        maybePromise.finally(() => finishCounting())
+      }
+    } catch (err) {
+      // ensure we count the request even on synchronous handler errors
+      wrappedCallback(err)
+    }
   }
 }
 

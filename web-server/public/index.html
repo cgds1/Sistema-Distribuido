@@ -105,6 +105,36 @@
     .pill { display:inline-block; background: var(--panel-2); border:1px solid var(--border); border-radius: 20px; padding: 1px 9px; font-size: 11px; color: var(--muted); }
     #banner { display:none; padding:10px 14px; border-radius:7px; margin-bottom:6px; font-size:13px; }
     #banner.err { display:block; background: rgba(248,81,73,.12); border:1px solid var(--red); color:#ffb4ae; }
+
+    /* Log filters: inline, single-line container with fixed height */
+    #log-filters {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      white-space: nowrap;
+      height: 40px; /* fixed height so container doesn't grow */
+      padding: 6px 0;
+    }
+    #log-filters label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 13px;
+      color: var(--muted);
+      min-width: 110px;
+      flex: 0 0 auto; /* do not grow */
+      justify-content: center;
+    }
+    #log-filters input[type="checkbox"] { width: 16px; height: 16px; margin: 0; }
+    /* small scrollbar for horizontal overflow */
+    #log-filters::-webkit-scrollbar { height: 6px; }
   </style>
 </head>
 <body>
@@ -116,7 +146,7 @@
   <div class="wrap">
     <!-- Panel de nodos -->
     <div class="card">
-      <h2>Estado de los nodos <span class="pill" id="poll-state">polling 2s</span></h2>
+      <h2>Estado de los nodos <span class="pill" id="poll-state">polling 1s</span></h2>
       <div class="nodes" id="nodes"><div class="empty">Consultando…</div></div>
     </div>
 
@@ -150,13 +180,18 @@
       <!-- Log de actividad -->
       <div class="card">
         <h2>Actividad (observabilidad)</h2>
+        <div id="log-filters" style="margin-bottom:8px"></div>
         <div id="log"><div class="empty">Sin operaciones aún.</div></div>
       </div>
     </div>
 
     <!-- Tabla -->
     <div class="card">
-      <h2>Personas <button class="ghost small" id="reload-btn" style="float:right">↻ Recargar</button></h2>
+      <h2>Personas 
+        <input id="simulate-count" type="number" min="1" value="10" style="width:72px; margin-left:8px;">
+        <button class="ghost small" id="simulate-btn">Simular</button>
+        <button class="ghost small" id="reload-btn" style="float:right">↻ Recargar</button>
+      </h2>
       <table>
         <thead><tr><th>CI</th><th>Nombre</th><th>Apellido</th><th style="width:140px">Acciones</th></tr></thead>
         <tbody id="tbody"><tr><td colspan="4" class="empty">Cargando…</td></tr></tbody>
@@ -165,8 +200,10 @@
   </div>
 
   <script>
-    const $ = (id) => document.getElementById(id)
-    let editing = null // ci en edición, o null
+    const $ = id => document.getElementById(id)
+    let editing = null
+    let addrToLabel = {}
+    let labelFilter = {}
 
     // --- Cliente HTTP: devuelve datos + headers de observabilidad ---
     async function api(method, path, body) {
@@ -179,29 +216,60 @@
       const node = res.headers.get('X-Node')
       const score = res.headers.get('X-Score')
       let data = null
-      try { data = await res.json() } catch { /* sin body */ }
+      try { data = await res.json() } catch {}
       return { ok: res.ok, status: res.status, data, node, score }
-    }
-
-    // --- Log de observabilidad ---
-    function log(op, r, isErr = false) {
-      const box = $('log')
-      if (box.querySelector('.empty')) box.innerHTML = ''
-      const line = document.createElement('div')
-      line.className = 'logline' + (isErr ? ' err' : '')
-      const t = new Date().toLocaleTimeString()
-      const nodeInfo = r && r.node
-        ? `→ <span class="node-tag">${r.node}</span> <span class="t">(score ${r.score})</span>`
-        : ''
-      const detail = isErr ? ` <span class="t">${(r && r.data && r.data.error) || 'error'}</span>` : ''
-      line.innerHTML = `<span class="t">${t}</span> <span class="op">${op}</span> ${nodeInfo}${detail}`
-      box.prepend(line)
     }
 
     function banner(msg) {
       const b = $('banner')
       if (!msg) { b.className = ''; b.textContent = ''; return }
       b.className = 'err'; b.textContent = msg
+    }
+
+    // --- Log de observabilidad con filtros por servicio ---
+    function log(op, r, isErr = false) {
+      const box = $('log')
+      if (box.querySelector('.empty')) box.innerHTML = ''
+      const line = document.createElement('div')
+      line.className = 'logline' + (isErr ? ' err' : '')
+      const t = new Date().toLocaleTimeString()
+      const label = r && r.node ? (addrToLabel[r.node] ?? r.node) : 'local'
+      const nodeInfo = r && (r.node || label)
+        ? `→ <span class="node-tag">${label}</span> <span class="t">(score ${r.score})</span>`
+        : ''
+      const detail = isErr ? ` <span class="t">${(r && r.data && r.data.error) || 'error'}</span>` : ''
+      line.innerHTML = `<span class="t">${t}</span> <span class="op">${op}</span> ${nodeInfo}${detail}`
+      line.dataset.service = label
+      box.prepend(line)
+      applyLogFilter()
+    }
+
+    function renderLogFilters() {
+      const container = $('log-filters')
+      container.innerHTML = ''
+      const labels = Object.keys(labelFilter).sort()
+      labels.forEach(label => {
+        const id = 'filter-' + label
+        const cb = document.createElement('input')
+        cb.type = 'checkbox'
+        cb.id = id
+        cb.checked = !!labelFilter[label]
+        cb.addEventListener('change', () => { labelFilter[label] = cb.checked; applyLogFilter() })
+        const lbl = document.createElement('label')
+        lbl.className = 'filter-item'
+        lbl.appendChild(cb)
+        const text = document.createTextNode(' ' + label)
+        lbl.appendChild(text)
+        container.appendChild(lbl)
+      })
+    }
+
+    function applyLogFilter() {
+      document.querySelectorAll('#log .logline').forEach(line => {
+        const svc = line.dataset.service || 'unknown'
+        if (!svc || svc === 'unknown') line.style.display = ''
+        else line.style.display = labelFilter[svc] ? '' : 'none'
+      })
     }
 
     // --- Listar personas ---
@@ -215,6 +283,8 @@
         $('tbody').innerHTML = `<tr><td colspan="4" class="empty">Sin conexión con el servidor.</td></tr>`
       }
     }
+
+    const esc = (s) => String(s).replace(/[&<>\"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;' }[c]))
 
     function renderTable(personas) {
       const tb = $('tbody')
@@ -231,7 +301,6 @@
         tb.appendChild(tr)
       }
     }
-    const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]))
 
     // --- Crear / Actualizar ---
     $('form').addEventListener('submit', async (e) => {
@@ -256,7 +325,6 @@
     })
 
     $('cancel-btn').addEventListener('click', resetForm)
-    $('reload-btn').addEventListener('click', loadPersonas)
 
     function resetForm() {
       editing = null
@@ -294,13 +362,42 @@
       }
     })
 
-    // --- Panel de nodos (polling cada 2s a /health) ---
+    // --- Simular X peticiones GET /personas desde el header ---
+    $('simulate-btn').addEventListener('click', async () => {
+      const count = parseInt($('simulate-count').value, 10) || 1
+      $('simulate-btn').disabled = true
+      const promises = []
+      for (let i = 0; i < count; i++) {
+        const reqId = i + 1
+        const p = api('GET', '/personas')
+          .then(r => { log(`GET /personas #${reqId}`, r, !r.ok); return r })
+          .catch(err => { log(`GET /personas #${reqId}`, { ok: false, data: { error: err.message } }, true) })
+        promises.push(p)
+      }
+      await Promise.allSettled(promises)
+      $('simulate-btn').disabled = false
+      loadPersonas()
+    })
+
+    $('reload-btn').addEventListener('click', loadPersonas)
+
+    // --- Panel de nodos (polling cada 1s a /health) y mapeo addr->service ---
     async function pollHealth() {
       try {
         const res = await fetch('/health')
         const { nodes } = await res.json()
+        // rebuild mapping: addr -> service label
+        addrToLabel = {}
+        nodes.forEach((n, i) => {
+          const label = `service-${i + 1}`
+          if (n && n.node) addrToLabel[n.node] = label
+          // mantener estado de filtro para cada servicio (nuevo o existente)
+          labelFilter[label] = labelFilter[label] ?? true
+        })
         renderNodes(nodes)
-        $('poll-state').textContent = 'en vivo · 2s'
+        renderLogFilters()
+        applyLogFilter()
+        $('poll-state').textContent = 'en vivo · 1s'
       } catch {
         $('nodes').innerHTML = `<div class="empty">Sin conexión con el balanceador.</div>`
         $('poll-state').textContent = 'sin conexión'
@@ -313,12 +410,15 @@
       nodes.forEach((n, i) => {
         const div = document.createElement('div')
         div.className = 'node ' + (n.up ? 'up' : 'down')
+        const handled = n.up ? (n.metrics.handled ?? 0) : 0
+        const rps = n.up ? (n.metrics.avg_rps ?? 0) : 0
         const meta = n.up
-          ? `<div class="meta">score <b>${n.score}</b> · conns <b>${n.metrics.active_conns}</b> · rps <b>${n.metrics.avg_rps}</b><br>mem libre <b>${Math.round(n.metrics.free_mem_mb)} MB</b></div>`
+          ? `<div class="meta">score <b>${n.score}</b> · atendidos <b>${handled}</b> · rps <b>${Number(rps).toFixed(2)}</b><br>mem libre <b>${Math.round(n.metrics.free_mem_mb)} MB</b></div>`
           : `<div class="meta">no responde</div>`
+        const label = `service-${i + 1}`
         div.innerHTML = `
-          <div class="name"><span class="dot"></span> service-${i + 1}</div>
-          <div class="addr">${esc(n.node)}</div>
+          <div class="name"><span class="dot"></span> ${label}</div>
+          <div class="addr">${label}</div>
           ${meta}`
         box.appendChild(div)
       })
@@ -327,7 +427,7 @@
     // --- Arranque ---
     loadPersonas()
     pollHealth()
-    setInterval(pollHealth, 2000)
+    setInterval(pollHealth, 1000)
   </script>
 </body>
 </html>
